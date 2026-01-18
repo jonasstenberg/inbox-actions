@@ -1,10 +1,16 @@
 """IMAP email operations."""
 
+import os
 import ssl
 import sys
 from datetime import datetime, timedelta
 
 from imap_tools import AND, MailBox
+
+# Default max email size: 1MB (prevents loading huge emails into memory)
+DEFAULT_MAX_EMAIL_SIZE = 1 * 1024 * 1024  # 1MB in bytes
+# Body truncation limit for classifier
+BODY_TRUNCATE_LENGTH = 1500
 
 
 def _get_ssl_context():
@@ -12,10 +18,27 @@ def _get_ssl_context():
     return ssl.create_default_context()
 
 
+def _get_max_email_size():
+    """Get maximum email size from environment or use default."""
+    env_size = os.getenv("EMAIL_MAX_SIZE")
+    if env_size:
+        try:
+            return int(env_size)
+        except ValueError:
+            print(f"Warning: Invalid EMAIL_MAX_SIZE '{env_size}', using default {DEFAULT_MAX_EMAIL_SIZE}")
+    return DEFAULT_MAX_EMAIL_SIZE
+
+
 def fetch_emails(config, unread_only=False, limit=None, days=None, verbose=False):
-    """Fetch emails from IMAP server."""
+    """Fetch emails from IMAP server.
+
+    Uses a two-phase fetch to avoid loading large emails into memory:
+    1. First fetches headers only to check email sizes
+    2. Then fetches full content only for emails under the size limit
+    """
     limit = limit or config["email_limit"]
     days = days or config["email_days"]
+    max_size = _get_max_email_size()
     emails = []
     since_date = (datetime.now() - timedelta(days=days)).date()
 
@@ -33,20 +56,57 @@ def fetch_emails(config, unread_only=False, limit=None, days=None, verbose=False
             if verbose:
                 print(f"  Fetching emails since {since_date} (up to {limit})...")
 
-            for i, msg in enumerate(mailbox.fetch(criteria, reverse=True, limit=limit)):
-                date_str = msg.date.strftime("%Y-%m-%d %H:%M") if msg.date else "Unknown"
-                body = (msg.text or msg.html or "")[:1500]
-
-                emails.append({
+            # Phase 1: Fetch headers only to get sizes and UIDs
+            headers_data = []
+            for msg in mailbox.fetch(criteria, reverse=True, limit=limit, headers_only=True):
+                headers_data.append({
                     "uid": msg.uid,
-                    "sender": msg.from_,
                     "subject": msg.subject or "(no subject)",
-                    "date": date_str,
-                    "body": body,
+                    "sender": msg.from_,
+                    "date": msg.date,
+                    "size": msg.size_rfc822 or 0,
                 })
 
-                if verbose and i < 2:
-                    print(f"  Fetched: {msg.subject[:50] if msg.subject else '(no subject)'}")
+            # Phase 2: Fetch full content only for small emails
+            small_uids = []
+            skipped_count = 0
+            for hdr in headers_data:
+                if hdr["size"] <= max_size:
+                    small_uids.append(hdr["uid"])
+                else:
+                    skipped_count += 1
+                    if verbose:
+                        size_mb = hdr["size"] / (1024 * 1024)
+                        print(f"  Skipping large email ({size_mb:.1f}MB): {hdr['subject'][:50]}")
+                    # Add placeholder for large emails with metadata only
+                    date_str = hdr["date"].strftime("%Y-%m-%d %H:%M") if hdr["date"] else "Unknown"
+                    emails.append({
+                        "uid": hdr["uid"],
+                        "sender": hdr["sender"],
+                        "subject": hdr["subject"],
+                        "date": date_str,
+                        "body": f"[Email too large to process: {hdr['size'] / (1024 * 1024):.1f}MB]",
+                    })
+
+            if skipped_count > 0 and not verbose:
+                print(f"  Warning: Skipped {skipped_count} email(s) exceeding size limit ({max_size / (1024 * 1024):.1f}MB)")
+
+            # Fetch full content for small emails
+            if small_uids:
+                for i, msg in enumerate(mailbox.fetch(AND(uid=small_uids))):
+                    date_str = msg.date.strftime("%Y-%m-%d %H:%M") if msg.date else "Unknown"
+                    body = (msg.text or msg.html or "")[:BODY_TRUNCATE_LENGTH]
+
+                    emails.append({
+                        "uid": msg.uid,
+                        "sender": msg.from_,
+                        "subject": msg.subject or "(no subject)",
+                        "date": date_str,
+                        "body": body,
+                    })
+
+                    if verbose and i < 2:
+                        print(f"  Fetched: {msg.subject[:50] if msg.subject else '(no subject)'}")
 
     except Exception as e:
         print(f"IMAP error: {e}")

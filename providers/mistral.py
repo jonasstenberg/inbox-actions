@@ -2,7 +2,7 @@
 
 from mistralai import Mistral
 
-from providers.base import ClassificationResult, Provider
+from providers.base import Provider
 
 
 class MistralProvider(Provider):
@@ -16,19 +16,11 @@ class MistralProvider(Provider):
     def name(self) -> str:
         return "Mistral"
 
-    def classify(self, prompt: str) -> ClassificationResult:
-        """Classify email using Mistral API."""
-        try:
-            client = Mistral(api_key=self.api_key)
-            response = client.chat.complete(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            content = response.choices[0].message.content.strip()
-            return self.parse_response(content)
-        except Exception:
-            return ClassificationResult(
-                needs_action=False,
-                priority="low",
-                reason="API error occurred",
-            )
+    def _call_api(self, prompt: str) -> str:
+        """Call Mistral API and return response content."""
+        client = Mistral(api_key=self.api_key, timeout_ms=self.timeout * 1000)
+        response = client.chat.complete(
+            model=self.model,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return response.choices[0].message.content.strip()

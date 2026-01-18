@@ -24,6 +24,10 @@ class MockProvider(Provider):
     def name(self) -> str:
         return "Mock"
 
+    def _call_api(self, prompt: str) -> str:
+        """Not used - MockProvider overrides classify() directly."""
+        raise NotImplementedError("MockProvider does not make API calls")
+
     def classify(self, prompt: str) -> ClassificationResult:
         """Return deterministic classification based on prompt content."""
         # Generate consistent hash from prompt

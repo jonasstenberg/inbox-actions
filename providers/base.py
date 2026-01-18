@@ -1,8 +1,12 @@
 """Base provider interface for AI classification."""
 
 import json
+import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+
+# Default timeout for API requests (in seconds)
+DEFAULT_TIMEOUT = 60
 
 
 @dataclass
@@ -28,6 +32,11 @@ class Provider(ABC):
         self.model = model or self.default_model
 
     @property
+    def timeout(self) -> int:
+        """Get timeout value from environment or use default."""
+        return int(os.getenv("LLM_API_TIMEOUT", DEFAULT_TIMEOUT))
+
+    @property
     @abstractmethod
     def default_model(self) -> str:
         """Default model to use for this provider."""
@@ -39,15 +48,41 @@ class Provider(ABC):
         """Human-readable name of this provider."""
         raise NotImplementedError
 
-    @abstractmethod
     def classify(self, prompt: str) -> ClassificationResult:
         """Classify an email using the provider's API.
+
+        Uses template method pattern - subclasses implement _call_api().
 
         Args:
             prompt: The formatted prompt containing email data.
 
         Returns:
             ClassificationResult with needs_action, priority, and reason.
+        """
+        try:
+            content = self._call_api(prompt)
+            return self.parse_response(content)
+        except Exception:
+            return ClassificationResult(
+                needs_action=False,
+                priority="low",
+                reason="API error occurred",
+            )
+
+    @abstractmethod
+    def _call_api(self, prompt: str) -> str:
+        """Make the API call and return the response content.
+
+        Subclasses implement this to handle provider-specific API calls.
+
+        Args:
+            prompt: The formatted prompt containing email data.
+
+        Returns:
+            Raw response content string from the API.
+
+        Raises:
+            Exception: Any API-related errors (handled by classify()).
         """
         raise NotImplementedError
 

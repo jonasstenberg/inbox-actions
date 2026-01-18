@@ -2,7 +2,7 @@
 
 import anthropic
 
-from providers.base import ClassificationResult, Provider
+from providers.base import Provider
 
 
 class AnthropicProvider(Provider):
@@ -16,20 +16,12 @@ class AnthropicProvider(Provider):
     def name(self) -> str:
         return "Anthropic"
 
-    def classify(self, prompt: str) -> ClassificationResult:
-        """Classify email using Anthropic API."""
-        try:
-            client = anthropic.Anthropic(api_key=self.api_key)
-            response = client.messages.create(
-                model=self.model,
-                max_tokens=1024,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            content = response.content[0].text.strip()
-            return self.parse_response(content)
-        except Exception:
-            return ClassificationResult(
-                needs_action=False,
-                priority="low",
-                reason="API error occurred",
-            )
+    def _call_api(self, prompt: str) -> str:
+        """Call Anthropic API and return response content."""
+        client = anthropic.Anthropic(api_key=self.api_key, timeout=self.timeout)
+        response = client.messages.create(
+            model=self.model,
+            max_tokens=1024,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return response.content[0].text.strip()

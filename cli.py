@@ -98,23 +98,16 @@ def main():
         mark_emails(config, results, mark_read=args.mark_read, flag_action=args.flag_action)
 
     # Send notifications
+    notifiers_to_enable = []
     if args.notify_slack:
-        try:
-            from notifications import SlackNotifier
-            SlackNotifier().send(results)
-            if args.verbose:
-                print("Slack notification sent.")
-        except ValueError as e:
-            print(f"Slack notification skipped: {e}")
-
+        notifiers_to_enable.append("slack")
     if args.notify_webhook:
-        try:
-            from notifications import WebhookNotifier
-            WebhookNotifier().send(results)
-            if args.verbose:
-                print("Webhook notification sent.")
-        except ValueError as e:
-            print(f"Webhook notification skipped: {e}")
+        notifiers_to_enable.append("webhook")
+
+    if notifiers_to_enable:
+        from notifications import NotificationManager
+        manager = NotificationManager(notifiers=notifiers_to_enable, verbose=args.verbose)
+        manager.send(results)
 
 
 if __name__ == "__main__":

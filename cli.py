@@ -6,12 +6,18 @@ import json
 from config import get_config
 from email_client import fetch_emails, list_folders, mark_emails
 from classifier import classify_emails
-from output import print_results
+from providers import PROVIDERS, DEFAULT_PROVIDER
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Classify emails using IMAP and Mistral API"
+        description="Classify emails using IMAP and AI providers"
+    )
+    parser.add_argument(
+        "--provider",
+        choices=list(PROVIDERS.keys()),
+        default=DEFAULT_PROVIDER,
+        help=f"AI provider to use (default: {DEFAULT_PROVIDER})",
     )
     parser.add_argument(
         "--unread-only", action="store_true", help="Only process unread emails"
@@ -32,7 +38,7 @@ def main():
         "--json", action="store_true", help="Output results as JSON"
     )
     parser.add_argument(
-        "--dry-run", action="store_true", help="Fetch emails without calling Mistral API"
+        "--dry-run", action="store_true", help="Fetch emails without calling AI API"
     )
     parser.add_argument(
         "--list-folders", action="store_true", help="List available IMAP folders and exit"
@@ -48,7 +54,9 @@ def main():
     )
     args = parser.parse_args()
 
-    config = get_config()
+    # Skip provider validation for dry-run mode
+    provider_for_validation = None if args.dry_run else args.provider
+    config = get_config(provider=provider_for_validation)
 
     if args.list_folders:
         list_folders(config)
@@ -77,12 +85,13 @@ def main():
         ]
     else:
         if args.verbose:
-            print(f"Found {len(emails)} emails. Classifying...")
-        results = classify_emails(config, emails)
+            print(f"Found {len(emails)} emails. Classifying with {args.provider}...")
+        results = classify_emails(config, emails, provider_name=args.provider)
 
     if args.json:
         print(json.dumps(results, indent=2))
     else:
+        from output import print_results
         print_results(results)
 
     if args.mark_read or args.flag_action:

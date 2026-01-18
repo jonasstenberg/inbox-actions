@@ -1,9 +1,15 @@
 """IMAP email operations."""
 
+import ssl
 import sys
 from datetime import datetime, timedelta
 
 from imap_tools import AND, MailBox
+
+
+def _get_ssl_context():
+    """Create SSL context with certificate verification."""
+    return ssl.create_default_context()
 
 
 def fetch_emails(config, unread_only=False, limit=None, days=None, verbose=False):
@@ -14,7 +20,7 @@ def fetch_emails(config, unread_only=False, limit=None, days=None, verbose=False
     since_date = (datetime.now() - timedelta(days=days)).date()
 
     try:
-        with MailBox(config["imap_server"]).login(
+        with MailBox(config["imap_server"], ssl_context=_get_ssl_context()).login(
             config["imap_username"],
             config["imap_password"],
             config["email_folder"],
@@ -52,7 +58,7 @@ def fetch_emails(config, unread_only=False, limit=None, days=None, verbose=False
 def list_folders(config):
     """List available IMAP folders."""
     try:
-        with MailBox(config["imap_server"]).login(
+        with MailBox(config["imap_server"], ssl_context=_get_ssl_context()).login(
             config["imap_username"],
             config["imap_password"],
         ) as mailbox:
@@ -71,7 +77,7 @@ def mark_emails(config, results, mark_read=False, flag_action=False):
         return
 
     try:
-        with MailBox(config["imap_server"]).login(
+        with MailBox(config["imap_server"], ssl_context=_get_ssl_context()).login(
             config["imap_username"],
             config["imap_password"],
             config["email_folder"],

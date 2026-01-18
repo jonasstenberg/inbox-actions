@@ -7,6 +7,9 @@ import urllib.error
 
 from notifications.base import Notifier
 
+# Default timeout for webhook requests (in seconds)
+DEFAULT_TIMEOUT = 10
+
 
 class WebhookNotifier(Notifier):
     """Send notifications to a generic webhook endpoint."""
@@ -22,6 +25,7 @@ class WebhookNotifier(Notifier):
         if not self.webhook_url:
             raise ValueError("Webhook URL required (pass or set WEBHOOK_URL)")
         self.action_only = action_only
+        self.timeout = int(os.getenv("WEBHOOK_TIMEOUT", DEFAULT_TIMEOUT))
 
     def send(self, results: list[dict]) -> None:
         """Send classification results to webhook."""
@@ -56,7 +60,7 @@ class WebhookNotifier(Notifier):
         )
 
         try:
-            with urllib.request.urlopen(req) as response:
+            with urllib.request.urlopen(req, timeout=self.timeout) as response:
                 if response.status != 200:
                     print(f"Webhook notification failed: {response.status}")
         except urllib.error.URLError as e:

@@ -35,9 +35,9 @@ class OllamaProvider(Provider):
             )
             content = response.choices[0].message.content.strip()
             return self.parse_response(content)
-        except Exception as e:
+        except Exception:
             return ClassificationResult(
                 needs_action=False,
                 priority="low",
-                reason=str(e)[:50],
+                reason="API error occurred",
             )

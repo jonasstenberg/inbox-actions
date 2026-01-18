@@ -27,9 +27,9 @@ class AnthropicProvider(Provider):
             )
             content = response.content[0].text.strip()
             return self.parse_response(content)
-        except Exception as e:
+        except Exception:
             return ClassificationResult(
                 needs_action=False,
                 priority="low",
-                reason=str(e)[:50],
+                reason="API error occurred",
             )

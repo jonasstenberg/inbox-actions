@@ -1,10 +1,25 @@
 """Email classification using AI providers."""
 
 import os
+import re
 import sys
 import time
 
 from providers import PROVIDERS, PROVIDER_API_KEYS, DEFAULT_PROVIDER, Provider
+
+
+def _sanitize_email_content(text: str, max_length: int = 1500) -> str:
+    """Sanitize email content to mitigate prompt injection attacks.
+
+    Wraps content in clear delimiters and truncates to max length.
+    """
+    if not text:
+        return ""
+    # Truncate to max length
+    text = text[:max_length]
+    # Replace sequences that might confuse the model about instruction boundaries
+    text = re.sub(r"```+", "'''", text)
+    return text
 
 
 def load_prompt():
@@ -57,10 +72,10 @@ def get_provider(config: dict, provider_name: str | None = None) -> Provider:
 def classify_email(provider: Provider, email_data: dict, prompt_template: str) -> dict:
     """Classify a single email using the provider."""
     prompt = prompt_template.format(
-        sender=email_data["sender"],
-        subject=email_data["subject"],
+        sender=_sanitize_email_content(email_data["sender"], max_length=200),
+        subject=_sanitize_email_content(email_data["subject"], max_length=500),
         date=email_data["date"],
-        body=email_data["body"],
+        body=_sanitize_email_content(email_data["body"]),
     )
 
     result = provider.classify(prompt)

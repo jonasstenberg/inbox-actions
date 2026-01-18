@@ -37,11 +37,13 @@ Analyze this email and determine if it requires action from me.
 
 ## Email
 
+<email>
 From: {sender}
 Subject: {subject}
 Date: {date}
 Body:
 {body}
+</email>
 
 ## Response Format
 

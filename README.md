@@ -103,3 +103,119 @@ Test the pipeline without API calls:
 ```bash
 python main.py --provider mock
 ```
+
+## Scheduling
+
+### macOS (launchd)
+
+1. Create a plist file:
+
+   ```bash
+   cat > ~/Library/LaunchAgents/com.inbox-actions.plist << 'EOF'
+   <?xml version="1.0" encoding="UTF-8"?>
+   <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+   <plist version="1.0">
+   <dict>
+       <key>Label</key>
+       <string>com.inbox-actions</string>
+       <key>ProgramArguments</key>
+       <array>
+           <string>/usr/bin/python3</string>
+           <string>/path/to/inbox-actions/main.py</string>
+           <string>--unread-only</string>
+           <string>--notify-slack</string>
+       </array>
+       <key>WorkingDirectory</key>
+       <string>/path/to/inbox-actions</string>
+       <key>StartCalendarInterval</key>
+       <dict>
+           <key>Hour</key>
+           <integer>8</integer>
+           <key>Minute</key>
+           <integer>0</integer>
+       </dict>
+       <key>StandardOutPath</key>
+       <string>/tmp/inbox-actions.log</string>
+       <key>StandardErrorPath</key>
+       <string>/tmp/inbox-actions.err</string>
+   </dict>
+   </plist>
+   EOF
+   ```
+
+2. Update the paths in the plist to match your installation.
+
+3. Load the job (modern syntax):
+
+   ```bash
+   launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.inbox-actions.plist
+   ```
+
+4. To unload:
+
+   ```bash
+   launchctl bootout gui/$(id -u)/com.inbox-actions
+   ```
+
+5. To check status:
+
+   ```bash
+   launchctl print gui/$(id -u)/com.inbox-actions
+   ```
+
+### Linux (cron)
+
+1. Open your crontab:
+
+   ```bash
+   crontab -e
+   ```
+
+2. Add a line to run daily at 8am:
+
+   ```cron
+   0 8 * * * cd /path/to/inbox-actions && /usr/bin/python3 main.py --unread-only --notify-slack >> /tmp/inbox-actions.log 2>&1
+   ```
+
+### Linux (systemd timer)
+
+1. Create a service file at `~/.config/systemd/user/inbox-actions.service`:
+
+   ```ini
+   [Unit]
+   Description=Inbox Actions Email Classifier
+
+   [Service]
+   Type=oneshot
+   WorkingDirectory=/path/to/inbox-actions
+   ExecStart=/usr/bin/python3 main.py --unread-only --notify-slack
+   ```
+
+2. Create a timer file at `~/.config/systemd/user/inbox-actions.timer`:
+
+   ```ini
+   [Unit]
+   Description=Run Inbox Actions daily at 8am
+
+   [Timer]
+   OnCalendar=*-*-* 08:00:00
+   Persistent=true
+
+   [Install]
+   WantedBy=timers.target
+   ```
+
+3. Enable and start the timer:
+
+   ```bash
+   systemctl --user daemon-reload
+   systemctl --user enable inbox-actions.timer
+   systemctl --user start inbox-actions.timer
+   ```
+
+4. Check status:
+
+   ```bash
+   systemctl --user status inbox-actions.timer
+   systemctl --user list-timers
+   ```

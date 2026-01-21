@@ -5,7 +5,7 @@ import ssl
 import sys
 from datetime import datetime, timedelta
 
-from imap_tools import AND, MailBox
+from imap_tools import AND, MailBox, MailBoxStartTls
 
 # Default max email size: 1MB (prevents loading huge emails into memory)
 DEFAULT_MAX_EMAIL_SIZE = 1 * 1024 * 1024  # 1MB in bytes
@@ -13,9 +13,31 @@ DEFAULT_MAX_EMAIL_SIZE = 1 * 1024 * 1024  # 1MB in bytes
 BODY_TRUNCATE_LENGTH = 1500
 
 
-def _get_ssl_context():
+def _get_ssl_context(allow_self_signed=False):
     """Create SSL context with certificate verification."""
-    return ssl.create_default_context()
+    ctx = ssl.create_default_context()
+    if allow_self_signed:
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+    return ctx
+
+
+def _get_mailbox(config):
+    """Create appropriate mailbox connection based on config."""
+    if config.get("imap_starttls"):
+        # STARTTLS connection (e.g., Proton Bridge)
+        return MailBoxStartTls(
+            config["imap_server"],
+            port=config.get("imap_port", 1143),
+            ssl_context=_get_ssl_context(allow_self_signed=True),
+        )
+    else:
+        # Direct SSL/TLS connection (standard IMAP)
+        return MailBox(
+            config["imap_server"],
+            port=config.get("imap_port", 993),
+            ssl_context=_get_ssl_context(),
+        )
 
 
 def _get_max_email_size():
@@ -118,7 +140,7 @@ def fetch_emails(config, unread_only=False, limit=None, days=None, verbose=False
         print(f"  Fetching emails since {since_date} (up to {limit})...")
 
     try:
-        with MailBox(config["imap_server"], ssl_context=_get_ssl_context()).login(
+        with _get_mailbox(config).login(
             config["imap_username"],
             config["imap_password"],
             config["email_folder"],
@@ -144,7 +166,7 @@ def fetch_emails(config, unread_only=False, limit=None, days=None, verbose=False
 def list_folders(config):
     """List available IMAP folders."""
     try:
-        with MailBox(config["imap_server"], ssl_context=_get_ssl_context()).login(
+        with _get_mailbox(config).login(
             config["imap_username"],
             config["imap_password"],
         ) as mailbox:
@@ -163,7 +185,7 @@ def mark_emails(config, results, mark_read=False, flag_action=False):
         return
 
     try:
-        with MailBox(config["imap_server"], ssl_context=_get_ssl_context()).login(
+        with _get_mailbox(config).login(
             config["imap_username"],
             config["imap_password"],
             config["email_folder"],

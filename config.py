@@ -40,8 +40,10 @@ def get_config(provider: str | None = None):
 
     return {
         "imap_server": os.getenv("IMAP_SERVER"),
+        "imap_port": int(os.getenv("IMAP_PORT", 993)),
         "imap_username": os.getenv("IMAP_USERNAME"),
         "imap_password": os.getenv("IMAP_PASSWORD"),
+        "imap_starttls": os.getenv("IMAP_STARTTLS", "false").lower() == "true",
         "mistral_api_key": os.getenv("MISTRAL_API_KEY"),
         "openai_api_key": os.getenv("OPENAI_API_KEY"),
         "anthropic_api_key": os.getenv("ANTHROPIC_API_KEY"),
